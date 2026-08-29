@@ -8,7 +8,7 @@
 <style>
 :root{
   --bg:#0e1a12;--bg2:#152119;--panel:#1a2d21;--panel2:#213628;--border:#2d5a3e;
-  --chalk:#eae8df;--chalk-dim:#a3b0a3;--gold:#d4a843;--green:#6ec96e;--red:#d65a5a;--blue:#6ea8d6;
+  --chalk:#eae8df;--chalk-dim:#a3b0a3;--gold:#d4a843;--silver:#c5cdd6;--green:#6ec96e;--red:#d65a5a;--blue:#6ea8d6;
   --font-display:'Oswald',sans-serif;--font-body:'Inter',sans-serif;--font-mono:'Roboto Mono',monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -50,12 +50,14 @@ table.league .team-name{font-family:var(--font-body);font-weight:600;color:var(-
 table.league .team-players{font-family:var(--font-mono);font-size:.7rem;color:var(--chalk-dim);}
 table.league .pos-col{text-align:center;font-weight:700;width:32px;}
 table.league .pts-col{font-weight:700;color:var(--gold);}
-.top-row td{box-shadow:inset 3px 0 0 var(--gold);}
+.gold-row td{box-shadow:inset 3px 0 0 var(--gold);}
+.silver-row td{box-shadow:inset 3px 0 0 var(--silver);}
 .bottom-row td{box-shadow:inset 3px 0 0 var(--red);}
 .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.75rem;color:var(--chalk-dim);margin-bottom:10px;}
 .legend-item{display:flex;align-items:center;gap:6px;}
 .legend-swatch{display:inline-block;width:4px;height:14px;border-radius:2px;}
-.legend-swatch.top{background:var(--gold);}
+.legend-swatch.gold{background:var(--gold);}
+.legend-swatch.silver{background:var(--silver);}
 .legend-swatch.bottom{background:var(--red);}
 
 .form-pips{display:inline-flex;gap:3px;}
@@ -119,7 +121,8 @@ table.league .pts-col{font-weight:700;color:var(--gold);}
   <section id="view-table" class="view active">
     <div class="section-title" id="table-title">League Table</div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch top"></span> Finals places</span>
+      <span class="legend-item"><span class="legend-swatch gold"></span> 1st</span>
+      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th</span>
       <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
       <span class="legend-item">Select a pair for their results</span>
     </div>
@@ -152,7 +155,7 @@ const CONFIG = {
   teamsSheet: "Teams",
   fixturesSheet: "Fixtures",
   points: { PER_SET: 2, MATCH_WIN: 1 },
-  highlight: { top: 2, bottom: 2 }
+  highlight: { gold: 1, silverFrom: 2, silverTo: 5, bottom: 2 }
 };
 
 function spreadsheetId(value) {
@@ -475,8 +478,13 @@ function renderTable() {
 
   tbody.innerHTML = table.map(r => {
     let zone = '';
-    if (totalPlayed > 0 && r.position <= DATA.highlight.top) zone = ' top-row';
-    else if (totalPlayed > 0 && r.position > table.length - DATA.highlight.bottom) zone = ' bottom-row';
+    if (totalPlayed > 0) {
+      const last = table.length;
+      const bottomFrom = last - DATA.highlight.bottom + 1;
+      if (r.position === DATA.highlight.gold) zone = ' gold-row';
+      else if (r.position >= bottomFrom) zone = ' bottom-row';
+      else if (r.position >= DATA.highlight.silverFrom && r.position <= DATA.highlight.silverTo) zone = ' silver-row';
+    }
     const open = openPair === r.name;
 
     const row = `<tr class="pair-row${zone}${open ? ' open' : ''}" data-pair="${esc(r.name)}">
