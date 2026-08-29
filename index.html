@@ -154,6 +154,10 @@ const CONFIG = {
   sheetId: "1dT1QG8O83yCk34o7dQH_i5ROgNN6lV2O3juPmj94bKk",
   teamsSheet: "Teams",
   fixturesSheet: "Fixtures",
+  // Tab ids from the sheet URL (#gid=...). These read the tab exactly as
+  // typed; without them Google's feed drops scores such as 6-0.
+  teamsGid: "0",
+  fixturesGid: "34666147",
   points: { PER_SET: 2, MATCH_WIN: 1 },
   highlight: { gold: 1, silverFrom: 2, silverTo: 5, bottom: 2 }
 };
@@ -400,18 +404,32 @@ function rowsFromCsv(text) {
     });
 }
 
-async function loadCsvSheet(sheetId, sheetName) {
-  const url =
-    "https://docs.google.com/spreadsheets/d/" +
-    encodeURIComponent(sheetId) +
-    "/gviz/tq?tqx=out:csv&sheet=" +
-    encodeURIComponent(sheetName);
-
+async function fetchCsv(url, sheetName) {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error('Could not read the "' + sheetName + '" tab (' + response.status + ')');
   }
   return rowsFromCsv(await response.text());
+}
+
+// Export by tab id. Unlike the gviz feed this applies no column typing, so a
+// score Sheets could not read as a date (6-0, 0-6) still comes through.
+function exportCsvUrl(sheetId, gid) {
+  return (
+    "https://docs.google.com/spreadsheets/d/" +
+    encodeURIComponent(sheetId) +
+    "/export?format=csv&gid=" +
+    encodeURIComponent(gid)
+  );
+}
+
+function gvizCsvUrl(sheetId, sheetName) {
+  return (
+    "https://docs.google.com/spreadsheets/d/" +
+    encodeURIComponent(sheetId) +
+    "/gviz/tq?tqx=out:csv&sheet=" +
+    encodeURIComponent(sheetName)
+  );
 }
 
 function teamsFromRows(rows) {
@@ -459,20 +477,27 @@ function fixturesFromRows(rows) {
   });
 }
 
-async function loadSheetRows(sheetId, sheetName) {
+async function loadSheetRows(sheetId, sheetName, gid) {
+  if (gid !== undefined && gid !== null && String(gid).trim() !== "") {
+    try {
+      return await fetchCsv(exportCsvUrl(sheetId, gid), sheetName);
+    } catch (err) {
+      /* fall through to the name-based endpoints */
+    }
+  }
+
   try {
-    return await loadCsvSheet(sheetId, sheetName);
+    return await fetchCsv(gvizCsvUrl(sheetId, sheetName), sheetName);
   } catch (err) {
-    // Opening the page straight from disk blocks the CSV request, so fall
-    // back to the JSONP feed.
+    // Opening the page straight from disk blocks fetch, so fall back to JSONP.
     return rowsFromGviz(await loadGvizSheet(sheetId, sheetName));
   }
 }
 
 async function loadLeagueFromSheet(config) {
   const id = spreadsheetId(config.sheetId);
-  const teamRows = await loadSheetRows(id, config.teamsSheet);
-  const fixtureRows = await loadSheetRows(id, config.fixturesSheet);
+  const teamRows = await loadSheetRows(id, config.teamsSheet, config.teamsGid);
+  const fixtureRows = await loadSheetRows(id, config.fixturesSheet, config.fixturesGid);
   return {
     teams: teamsFromRows(teamRows),
     fixtures: fixturesFromRows(fixtureRows)
