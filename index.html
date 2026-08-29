@@ -52,12 +52,26 @@ table.league .pos-col{text-align:center;font-weight:700;width:32px;}
 table.league .pts-col{font-weight:700;color:var(--gold);}
 .gold-row td{box-shadow:inset 3px 0 0 var(--gold);}
 .silver-row td{box-shadow:inset 3px 0 0 var(--silver);}
+.green-row td{box-shadow:inset 3px 0 0 var(--border);}
 .bottom-row td{box-shadow:inset 3px 0 0 var(--red);}
+table.league tbody tr.gold-row{background:rgba(212,168,67,.18);}
+table.league tbody tr.gold-row:hover,
+table.league tbody tr.gold-row.open{background:rgba(212,168,67,.26);}
+table.league tbody tr.gold-row .pos-col{color:var(--gold);}
+table.league tbody tr.silver-row{background:rgba(197,205,214,.12);}
+table.league tbody tr.silver-row:hover,
+table.league tbody tr.silver-row.open{background:rgba(197,205,214,.2);}
+table.league tbody tr.silver-row .pos-col{color:var(--silver);}
+table.league tbody tr.green-row{background:rgba(45,90,62,.45);}
+table.league tbody tr.green-row:hover,
+table.league tbody tr.green-row.open{background:rgba(45,90,62,.6);}
+table.league tbody tr.green-row .pos-col{color:#8fb89a;}
 .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.75rem;color:var(--chalk-dim);margin-bottom:10px;}
 .legend-item{display:flex;align-items:center;gap:6px;}
 .legend-swatch{display:inline-block;width:4px;height:14px;border-radius:2px;}
 .legend-swatch.gold{background:var(--gold);}
 .legend-swatch.silver{background:var(--silver);}
+.legend-swatch.mid{background:var(--border);}
 .legend-swatch.bottom{background:var(--red);}
 
 .form-pips{display:inline-flex;gap:3px;}
@@ -121,8 +135,9 @@ table.league .pts-col{font-weight:700;color:var(--gold);}
   <section id="view-table" class="view active">
     <div class="section-title" id="table-title">League Table</div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch gold"></span> Group leader/winner</span>
-      <span class="legend-item"><span class="legend-swatch silver"></span> Playoff positions</span>
+      <span class="legend-item"><span class="legend-swatch gold"></span> 1st</span>
+      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th</span>
+      <span class="legend-item"><span class="legend-swatch mid"></span> 6th–12th</span>
       <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
       <span class="legend-item">Select a pair for their results</span>
     </div>
@@ -159,7 +174,7 @@ const CONFIG = {
   teamsGid: "0",
   fixturesGid: "34666147",
   points: { PER_SET: 2, MATCH_WIN: 1 },
-  highlight: { gold: 1, silverFrom: 2, silverTo: 5, bottom: 2 }
+  highlight: { gold: 1, silverFrom: 2, silverTo: 5, greenFrom: 6, greenTo: 12, bottom: 2 }
 };
 
 function spreadsheetId(value) {
@@ -650,6 +665,7 @@ function renderTable() {
       if (r.position === DATA.highlight.gold) zone = ' gold-row';
       else if (r.position >= bottomFrom) zone = ' bottom-row';
       else if (r.position >= DATA.highlight.silverFrom && r.position <= DATA.highlight.silverTo) zone = ' silver-row';
+      else if (r.position >= DATA.highlight.greenFrom && r.position <= DATA.highlight.greenTo) zone = ' green-row';
     }
     const open = openPair === r.name;
 
@@ -785,9 +801,9 @@ function paintLeague() {
   document.getElementById('table-title').textContent =
     'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
   document.getElementById('scoring-note').textContent =
-    'Matches are best of three, and all three sets must be played. ' +
+    'Matches are best of three, but all three sets are always played. ' +
     DATA.points.PER_SET + ' points for each set won, plus ' + DATA.points.MATCH_WIN +
-    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference. Rotate to view detailed table.';
+    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference.';
 
   renderTable();
   renderResults();
