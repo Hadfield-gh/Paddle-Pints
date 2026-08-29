@@ -281,17 +281,35 @@ function parseGvizDateSet(value) {
   return [home, away];
 }
 
-function parseSet(value) {
-  if (value === undefined || value === null || value === "") return null;
-  const fromDate = parseGvizDateSet(value);
-  if (fromDate) return fromDate;
-  const text = String(value).trim().replace(/^'/, "").replace(/[–—−]/g, "-");
-  const match = text.match(/^(\d{1,2})\s*[-:]\s*(\d{1,2})$/);
-  if (!match) return null;
-  const home = Number(match[1]);
-  const away = Number(match[2]);
+// A set cell formatted as Plain Text after Sheets stored it as a date comes
+// back as the underlying serial number, so turn that back into day-month.
+function parseSerialSet(value) {
+  const text = String(value).trim();
+  if (!/^\d{4,6}$/.test(text)) return null;
+  const date = new Date(Date.UTC(1899, 11, 30) + Number(text) * 86400000);
+  if (Number.isNaN(date.getTime())) return null;
+  const home = date.getUTCDate();
+  const away = date.getUTCMonth() + 1;
   if (home > 7 || away > 7) return null;
   return [home, away];
+}
+
+function parseSet(value) {
+  if (value === undefined || value === null || value === "") return null;
+
+  const fromDate = parseGvizDateSet(value);
+  if (fromDate) return fromDate;
+
+  const text = String(value).trim().replace(/^'/, "").replace(/[–—−]/g, "-");
+  const match = text.match(/^(\d{1,2})\s*[-:]\s*(\d{1,2})$/);
+  if (match) {
+    const home = Number(match[1]);
+    const away = Number(match[2]);
+    if (home > 7 || away > 7) return null;
+    return [home, away];
+  }
+
+  return parseSerialSet(text);
 }
 
 function parseSets(row) {
@@ -309,8 +327,95 @@ function parseSets(row) {
   return sets;
 }
 
-function teamsFromSheet(json) {
-  return rowsFromGviz(json)
+// Google's JSON feed forces one type per column and returns null for any cell
+// that does not match, which silently drops scores typed as text. CSV returns
+// every cell as displayed, so it is the primary source.
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (quoted) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (char !== "\r") {
+      field += char;
+    }
+  }
+
+  if (field !== "" || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function rowsFromCsv(text) {
+  const table = parseCsv(text);
+  if (!table.length) return [];
+
+  const cols = table[0].map(function (name) {
+    return String(name).trim().toLowerCase().replace(/\s+/g, "");
+  });
+
+  return table
+    .slice(1)
+    .map(function (cells) {
+      const obj = {};
+      cells.forEach(function (value, i) {
+        if (!cols[i]) return;
+        obj[cols[i]] = value;
+      });
+      return obj;
+    })
+    .filter(function (row) {
+      return Object.keys(row).some(function (key) {
+        return String(row[key]).trim() !== "";
+      });
+    });
+}
+
+async function loadCsvSheet(sheetId, sheetName) {
+  const url =
+    "https://docs.google.com/spreadsheets/d/" +
+    encodeURIComponent(sheetId) +
+    "/gviz/tq?tqx=out:csv&sheet=" +
+    encodeURIComponent(sheetName);
+
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error('Could not read the "' + sheetName + '" tab (' + response.status + ')');
+  }
+  return rowsFromCsv(await response.text());
+}
+
+function teamsFromRows(rows) {
+  return rows
     .map(function (row) {
       return {
         name: String(cell(row, ["name", "team", "pair"])).trim(),
@@ -322,11 +427,11 @@ function teamsFromSheet(json) {
     });
 }
 
-function fixturesFromSheet(json) {
+function fixturesFromRows(rows) {
   const grouped = {};
   const order = [];
 
-  rowsFromGviz(json).forEach(function (row) {
+  rows.forEach(function (row) {
     const home = String(cell(row, ["home", "hometeam"])).trim();
     const away = String(cell(row, ["away", "awayteam"])).trim();
     if (!home || !away) return;
@@ -354,13 +459,23 @@ function fixturesFromSheet(json) {
   });
 }
 
+async function loadSheetRows(sheetId, sheetName) {
+  try {
+    return await loadCsvSheet(sheetId, sheetName);
+  } catch (err) {
+    // Opening the page straight from disk blocks the CSV request, so fall
+    // back to the JSONP feed.
+    return rowsFromGviz(await loadGvizSheet(sheetId, sheetName));
+  }
+}
+
 async function loadLeagueFromSheet(config) {
   const id = spreadsheetId(config.sheetId);
-  const teamsJson = await loadGvizSheet(id, config.teamsSheet);
-  const fixturesJson = await loadGvizSheet(id, config.fixturesSheet);
+  const teamRows = await loadSheetRows(id, config.teamsSheet);
+  const fixtureRows = await loadSheetRows(id, config.fixturesSheet);
   return {
-    teams: teamsFromSheet(teamsJson),
-    fixtures: fixturesFromSheet(fixturesJson)
+    teams: teamsFromRows(teamRows),
+    fixtures: fixturesFromRows(fixtureRows)
   };
 }
 
