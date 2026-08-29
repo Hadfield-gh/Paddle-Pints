@@ -241,8 +241,7 @@ function rowsFromGviz(json) {
           obj[cols[i]] = "";
           return;
         }
-        obj[cols[i]] =
-          cell.f != null && String(cell.f).trim() !== "" ? cell.f : cell.v == null ? "" : cell.v;
+        obj[cols[i]] = sheetCellText(cell);
       });
       return obj;
     })
@@ -262,24 +261,50 @@ function cell(row, names) {
   return "";
 }
 
-function parseSet(value) {
-  if (value === undefined || value === null) return null;
-  const text = String(value).trim();
-  if (!text) return null;
-  const match = text.match(/^(\d+)\s*[-–:]\s*(\d+)$/);
+function sheetCellText(cell) {
+  if (!cell) return "";
+  const scored = parseSet(cell.f) || parseSet(cell.v);
+  if (scored) return scored[0] + "-" + scored[1];
+  if (cell.f != null && String(cell.f).trim() !== "") return cell.f;
+  return cell.v == null ? "" : cell.v;
+}
+
+// Google Sheets treats scores such as 6-3 as dates (d-m). 0-6 is day 0, which
+// does not format as a normal date, so we read the raw Date(year, month, day)
+// tuple instead of the displayed text.
+function parseGvizDateSet(value) {
+  const match = String(value).match(/^Date\((\d+),\s*(\d+),\s*(\d+)\)$/);
   if (!match) return null;
-  return [Number(match[1]), Number(match[2])];
+  const home = Number(match[3]);
+  const away = Number(match[2]) + 1;
+  if (home > 7 || away > 7) return null;
+  return [home, away];
+}
+
+function parseSet(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const fromDate = parseGvizDateSet(value);
+  if (fromDate) return fromDate;
+  const text = String(value).trim().replace(/^'/, "").replace(/[–—−]/g, "-");
+  const match = text.match(/^(\d{1,2})\s*[-:]\s*(\d{1,2})$/);
+  if (!match) return null;
+  const home = Number(match[1]);
+  const away = Number(match[2]);
+  if (home > 7 || away > 7) return null;
+  return [home, away];
 }
 
 function parseSets(row) {
   const combined = cell(row, ["sets", "score", "scores"]);
   if (combined) {
-    return String(combined).split(/[,;]/).map(parseSet).filter(Boolean);
+    return String(combined).split(/[,;]/).map(parseSet).filter(function (set) {
+      return set !== null;
+    });
   }
   const sets = [];
   ["set1", "set2", "set3", "set4", "set5"].forEach(function (key) {
     const parsed = parseSet(row[key]);
-    if (parsed) sets.push(parsed);
+    if (parsed !== null) sets.push(parsed);
   });
   return sets;
 }
