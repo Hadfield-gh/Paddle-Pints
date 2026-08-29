@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Padel League</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e1a12;--bg2:#152119;--panel:#1a2d21;--panel2:#213628;--border:#2d5a3e;
+  --chalk:#eae8df;--chalk-dim:#a3b0a3;--gold:#d4a843;--green:#6ec96e;--red:#d65a5a;--blue:#6ea8d6;
+  --font-display:'Oswald',sans-serif;--font-body:'Inter',sans-serif;--font-mono:'Roboto Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--chalk);font-family:var(--font-body);min-height:100vh;}
+a{color:var(--gold);text-decoration:none;}
+
+header{background:linear-gradient(180deg,var(--bg2),var(--bg));border-bottom:3px solid var(--gold);padding:16px 24px 0;position:sticky;top:0;z-index:50;}
+.hdr-row{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+h1{font-family:var(--font-display);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:1.4rem;margin:0 0 12px;}
+h1 span{color:var(--gold);}
+.season-badge{font-family:var(--font-mono);font-size:.75rem;color:var(--chalk-dim);background:var(--panel);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
+
+nav{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+nav button{background:0;border:0;border-bottom:3px solid transparent;color:var(--chalk-dim);font-family:var(--font-display);text-transform:uppercase;letter-spacing:.05em;font-size:.85rem;padding:8px 14px 10px;cursor:pointer;white-space:nowrap;}
+nav button:hover{color:var(--chalk);}
+nav button.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+main{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
+.view{display:none;}.view.active{display:block;}
+.section-title{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;font-size:1rem;color:var(--chalk-dim);margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.note{font-size:.8rem;color:var(--chalk-dim);line-height:1.5;margin-top:14px;}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+table.league{width:100%;border-collapse:collapse;font-size:.82rem;}
+table.league th{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:.7rem;color:var(--chalk-dim);text-align:left;padding:10px 8px;background:var(--bg2);white-space:nowrap;}
+table.league td{padding:8px;border-top:1px solid var(--border);font-family:var(--font-mono);white-space:nowrap;}
+table.league tbody tr{background:var(--panel);}
+table.league tbody tr.pair-row{cursor:pointer;}
+table.league tbody tr.pair-row:hover{background:var(--panel2);}
+table.league tbody tr.pair-row.open{background:var(--panel2);}
+table.league .team-name{font-family:var(--font-body);font-weight:600;color:var(--chalk);white-space:normal;min-width:150px;}
+table.league .team-players{font-family:var(--font-mono);font-size:.7rem;color:var(--chalk-dim);}
+table.league .pos-col{text-align:center;font-weight:700;width:32px;}
+table.league .pts-col{font-weight:700;color:var(--gold);}
+.top-row td{box-shadow:inset 3px 0 0 var(--gold);}
+.bottom-row td{box-shadow:inset 3px 0 0 var(--red);}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.75rem;color:var(--chalk-dim);margin-bottom:10px;}
+.legend-item{display:flex;align-items:center;gap:6px;}
+.legend-swatch{display:inline-block;width:4px;height:14px;border-radius:2px;}
+.legend-swatch.top{background:var(--gold);}
+.legend-swatch.bottom{background:var(--red);}
+
+.form-pips{display:inline-flex;gap:3px;}
+.pip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:3px;font-family:var(--font-mono);font-size:.65rem;font-weight:700;}
+.pip.w{background:rgba(110,201,110,.2);color:var(--green);}
+.pip.l{background:rgba(214,90,90,.2);color:var(--red);}
+
+.detail-row td{background:#16261c;white-space:normal;padding:4px 8px 12px;}
+.detail-list{display:grid;gap:6px;}
+.detail-line{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;font-size:.8rem;padding:5px 4px;border-bottom:1px solid rgba(45,90,62,.4);}
+.detail-line:last-child{border-bottom:none;}
+.detail-line .res{font-family:var(--font-mono);font-weight:700;font-size:.7rem;text-align:center;padding:2px 0;border-radius:3px;}
+.detail-line .res.w{background:rgba(110,201,110,.2);color:var(--green);}
+.detail-line .res.l{background:rgba(214,90,90,.2);color:var(--red);}
+.detail-line .sets{font-family:var(--font-mono);color:var(--chalk-dim);font-size:.75rem;}
+
+/* RESULTS */
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
+.chip{background:var(--panel);border:1px solid var(--border);color:var(--chalk-dim);font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:.75rem;padding:6px 12px;border-radius:5px;cursor:pointer;}
+.chip:hover{background:var(--panel2);color:var(--chalk);}
+.chip.active{background:var(--gold);border-color:var(--gold);color:var(--bg);}
+.round-head{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;font-size:.9rem;color:var(--chalk-dim);margin:22px 0 8px;}
+.round-head span{font-family:var(--font-mono);text-transform:none;letter-spacing:0;font-size:.75rem;margin-left:8px;}
+.match-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;padding:14px 16px;}
+.match-row{display:grid;grid-template-columns:1fr auto 28px auto 1fr;align-items:center;gap:8px;}
+.match-home{text-align:right;font-weight:600;font-size:.92rem;}
+.match-away{text-align:left;font-weight:600;font-size:.92rem;}
+.match-score{font-family:var(--font-mono);font-weight:700;font-size:1.1rem;text-align:center;color:var(--gold);}
+.match-dash{text-align:center;color:var(--chalk-dim);font-size:.8rem;}
+.match-sets{font-family:var(--font-mono);font-size:.75rem;color:var(--chalk-dim);text-align:center;margin-top:8px;}
+.match-future .match-score{color:var(--chalk-dim);font-size:.85rem;}
+.winner{color:var(--chalk);}
+.match-card:not(.match-future) .loser{color:var(--chalk-dim);}
+.empty{padding:30px 16px;text-align:center;color:var(--chalk-dim);font-size:.85rem;}
+
+@media(max-width:600px){
+  .match-row{grid-template-columns:1fr auto 22px auto 1fr;font-size:.8rem;}
+  .match-home,.match-away{font-size:.78rem;}
+  nav button{font-size:.75rem;padding:6px 10px 8px;}
+  .hide-sm{display:none;}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-row">
+    <h1>Padel <span>League</span></h1>
+    <span class="season-badge" id="season-badge">-</span>
+  </div>
+  <nav id="main-nav">
+    <button class="active" data-view="table">Table</button>
+    <button data-view="results">Results</button>
+  </nav>
+</header>
+
+<main>
+  <section id="view-table" class="view active">
+    <div class="section-title" id="table-title">League Table</div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch top"></span> Finals places</span>
+      <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
+      <span class="legend-item">Select a pair for their results</span>
+    </div>
+    <div class="table-wrap">
+      <table class="league" id="league-table">
+        <thead><tr>
+          <th class="pos-col">#</th><th>Pair</th><th>P</th><th>W</th><th>L</th>
+          <th class="hide-sm">SW</th><th class="hide-sm">SL</th><th class="hide-sm">SD</th>
+          <th class="hide-sm">GW</th><th class="hide-sm">GL</th><th class="hide-sm">GD</th>
+          <th>Pts</th><th class="hide-sm">Form</th>
+        </tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+    <p class="note" id="scoring-note"></p>
+  </section>
+
+  <section id="view-results" class="view">
+    <div class="section-title">All Results</div>
+    <div class="filters" id="round-filters"></div>
+    <div id="results-list"></div>
+  </section>
+</main>
+
+<script>
+/* ---------------------------------------------------------------------------
+   YOUR LEAGUE. Edit this block only.
+
+   - Each match has "sets": [[homeGames, awayGames], ...]
+   - Leave "sets" as [] for a fixture that has not been played yet.
+   - Everything else on the page (points, positions, form) is worked out
+     from these results.
+--------------------------------------------------------------------------- */
+const DATA = {
+  league: "Padel League",
+  season: "2026",
+  pairs: [
+    { name: "Ace & Smash",     players: "Elena Voss / Marco Ruiz" },
+    { name: "Net Setters",     players: "Priya Shah / Tom Hale" },
+    { name: "Glass Wall",      players: "Sofia Lind / James Okonkwo" },
+    { name: "The Lobsters",    players: "Mia Chen / Alex Petrov" },
+    { name: "Baseline Club",   players: "Nora Berg / Luis Santos" },
+    { name: "Drop Shot",       players: "Hannah Kim / Omar Farid" },
+    { name: "Golden Bandeja",  players: "Clara Rossi / Ben Walker" },
+    { name: "Cross Court",     players: "Yara Nasser / Sam Wright" }
+  ],
+  rounds: [
+    { round: 1, date: "5 Mar 2026", matches: [
+      { home: "Ace & Smash",    away: "Cross Court",      sets: [[6,2],[6,3]] },
+      { home: "Net Setters",    away: "Golden Bandeja",   sets: [[6,4],[3,6],[7,6]] },
+      { home: "Glass Wall",     away: "Drop Shot",        sets: [[6,3],[6,4]] },
+      { home: "The Lobsters",   away: "Baseline Club",    sets: [[4,6],[6,4],[6,3]] }
+    ]},
+    { round: 2, date: "12 Mar 2026", matches: [
+      { home: "Ace & Smash",    away: "Baseline Club",    sets: [[6,1],[6,4]] },
+      { home: "Cross Court",    away: "Drop Shot",        sets: [[3,6],[4,6]] },
+      { home: "Golden Bandeja", away: "The Lobsters",     sets: [[6,7],[6,3],[4,6]] },
+      { home: "Net Setters",    away: "Glass Wall",       sets: [[6,4],[6,4]] }
+    ]},
+    { round: 3, date: "19 Mar 2026", matches: [
+      { home: "Glass Wall",     away: "Ace & Smash",      sets: [[4,6],[6,7]] },
+      { home: "Drop Shot",      away: "Net Setters",      sets: [[6,3],[2,6],[6,4]] },
+      { home: "Baseline Club",  away: "Golden Bandeja",   sets: [[6,2],[6,1]] },
+      { home: "The Lobsters",   away: "Cross Court",      sets: [[6,4],[6,2]] }
+    ]},
+    { round: 4, date: "26 Mar 2026", matches: [
+      { home: "Ace & Smash",    away: "The Lobsters",     sets: [] },
+      { home: "Net Setters",    away: "Baseline Club",    sets: [] },
+      { home: "Glass Wall",     away: "Cross Court",      sets: [] },
+      { home: "Drop Shot",      away: "Golden Bandeja",   sets: [] }
+    ]}
+  ],
+  // Points awarded per match. Winner always takes WIN points; a loser who
+  // won a set takes LOSS_WITH_SET, otherwise nothing.
+  points: { WIN: 3, LOSS_WITH_SET: 1, LOSS: 0 },
+  // How many places are highlighted at the top and bottom of the table.
+  highlight: { top: 2, bottom: 2 }
+};
+/* ------------------------- end of editable block ------------------------- */
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str === undefined || str === null ? '' : str;
+  return d.innerHTML;
+}
+
+function isPlayed(match) {
+  return Array.isArray(match.sets) && match.sets.length > 0;
+}
+
+// Sets and games won by each side of a single match.
+function matchTotals(match) {
+  let homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
+  match.sets.forEach(([h, a]) => {
+    homeGames += h;
+    awayGames += a;
+    if (h > a) homeSets++; else awaySets++;
+  });
+  return { homeSets, awaySets, homeGames, awayGames };
+}
+
+function pointsFor(setsWon, setsLost) {
+  if (setsWon > setsLost) return DATA.points.WIN;
+  return setsWon > 0 ? DATA.points.LOSS_WITH_SET : DATA.points.LOSS;
+}
+
+function setScore(match) {
+  const t = matchTotals(match);
+  return t.homeSets + '-' + t.awaySets;
+}
+
+function setsLine(match) {
+  return match.sets.map(([h, a]) => h + '-' + a).join(', ');
+}
+
+// Every played match a pair appears in, oldest first, from that pair's side.
+function matchesForPair(pairName) {
+  const out = [];
+  DATA.rounds.forEach(r => {
+    r.matches.forEach(m => {
+      if (!isPlayed(m)) return;
+      if (m.home !== pairName && m.away !== pairName) return;
+      const t = matchTotals(m);
+      const home = m.home === pairName;
+      out.push({
+        round: r.round,
+        date: r.date,
+        opponent: home ? m.away : m.home,
+        setsWon: home ? t.homeSets : t.awaySets,
+        setsLost: home ? t.awaySets : t.homeSets,
+        sets: home ? setsLine(m) : m.sets.map(([h, a]) => a + '-' + h).join(', ')
+      });
+    });
+  });
+  return out;
+}
+
+function computeStandings() {
+  const rows = {};
+  DATA.pairs.forEach(p => {
+    rows[p.name] = {
+      name: p.name, players: p.players, played: 0, won: 0, lost: 0,
+      setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0, form: []
+    };
+  });
+
+  DATA.rounds.forEach(r => {
+    r.matches.forEach(m => {
+      if (!isPlayed(m)) return;
+      const home = rows[m.home], away = rows[m.away];
+      if (!home || !away) return;
+      const t = matchTotals(m);
+
+      [[home, t.homeSets, t.awaySets, t.homeGames, t.awayGames],
+       [away, t.awaySets, t.homeSets, t.awayGames, t.homeGames]]
+      .forEach(([row, sw, sl, gw, gl]) => {
+        row.played++;
+        row.setsWon += sw; row.setsLost += sl;
+        row.gamesWon += gw; row.gamesLost += gl;
+        row.points += pointsFor(sw, sl);
+        if (sw > sl) { row.won++; row.form.push('W'); } else { row.lost++; row.form.push('L'); }
+      });
+    });
+  });
+
+  const table = Object.values(rows).map(r => ({
+    ...r, setDiff: r.setsWon - r.setsLost, gameDiff: r.gamesWon - r.gamesLost
+  }));
+  table.sort((a, b) =>
+    b.points - a.points ||
+    b.setDiff - a.setDiff ||
+    b.gameDiff - a.gameDiff ||
+    b.won - a.won ||
+    a.name.localeCompare(b.name)
+  );
+  table.forEach((r, i) => { r.position = i + 1; });
+  return table;
+}
+
+function signed(n) { return n > 0 ? '+' + n : String(n); }
+
+function formPips(form) {
+  const recent = form.slice(-5);
+  if (!recent.length) return '<span class="team-players">-</span>';
+  return '<span class="form-pips">' +
+    recent.map(f => `<span class="pip ${f === 'W' ? 'w' : 'l'}">${f}</span>`).join('') +
+    '</span>';
+}
+
+let openPair = null;
+
+function renderTable() {
+  const table = computeStandings();
+  const tbody = document.getElementById('table-body');
+  const totalPlayed = DATA.rounds.reduce((n, r) => n + r.matches.filter(isPlayed).length, 0);
+
+  if (!table.length) {
+    tbody.innerHTML = '<tr><td colspan="13" class="empty">No pairs yet. Add them to DATA.pairs.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = table.map(r => {
+    let zone = '';
+    if (totalPlayed > 0 && r.position <= DATA.highlight.top) zone = ' top-row';
+    else if (totalPlayed > 0 && r.position > table.length - DATA.highlight.bottom) zone = ' bottom-row';
+    const open = openPair === r.name;
+
+    const row = `<tr class="pair-row${zone}${open ? ' open' : ''}" data-pair="${esc(r.name)}">
+      <td class="pos-col">${r.position}</td>
+      <td class="team-name">${esc(r.name)}<div class="team-players">${esc(r.players)}</div></td>
+      <td>${r.played}</td><td>${r.won}</td><td>${r.lost}</td>
+      <td class="hide-sm">${r.setsWon}</td><td class="hide-sm">${r.setsLost}</td><td class="hide-sm">${signed(r.setDiff)}</td>
+      <td class="hide-sm">${r.gamesWon}</td><td class="hide-sm">${r.gamesLost}</td><td class="hide-sm">${signed(r.gameDiff)}</td>
+      <td class="pts-col">${r.points}</td>
+      <td class="hide-sm">${formPips(r.form)}</td>
+    </tr>`;
+
+    if (!open) return row;
+
+    const played = matchesForPair(r.name);
+    const detail = played.length
+      ? `<div class="detail-list">${played.map(m => `
+          <div class="detail-line">
+            <div class="res ${m.setsWon > m.setsLost ? 'w' : 'l'}">${m.setsWon}-${m.setsLost}</div>
+            <div>R${m.round} v ${esc(m.opponent)}</div>
+            <div class="sets">${esc(m.sets)}</div>
+          </div>`).join('')}</div>`
+      : '<div class="empty">No matches played yet.</div>';
+
+    return row + `<tr class="detail-row"><td colspan="13">${detail}</td></tr>`;
+  }).join('');
+}
+
+document.getElementById('table-body').addEventListener('click', e => {
+  const row = e.target.closest('tr.pair-row');
+  if (!row) return;
+  openPair = openPair === row.dataset.pair ? null : row.dataset.pair;
+  renderTable();
+});
+
+let roundFilter = 'all';
+
+function renderFilters() {
+  const chips = ['<button class="chip' + (roundFilter === 'all' ? ' active' : '') + '" data-round="all">All rounds</button>']
+    .concat(DATA.rounds.map(r =>
+      `<button class="chip${roundFilter === String(r.round) ? ' active' : ''}" data-round="${r.round}">Round ${r.round}</button>`
+    ));
+  document.getElementById('round-filters').innerHTML = chips.join('');
+}
+
+function renderResults() {
+  renderFilters();
+  const rounds = roundFilter === 'all'
+    ? DATA.rounds
+    : DATA.rounds.filter(r => String(r.round) === roundFilter);
+  const list = document.getElementById('results-list');
+
+  if (!rounds.length) {
+    list.innerHTML = '<div class="empty">No fixtures for this round.</div>';
+    return;
+  }
+
+  list.innerHTML = rounds.map(r => {
+    const cards = r.matches.map(m => {
+      if (!isPlayed(m)) {
+        return `<div class="match-card match-future">
+          <div class="match-row">
+            <div class="match-home">${esc(m.home)}</div>
+            <div class="match-score">-</div>
+            <div class="match-dash">v</div>
+            <div class="match-score">-</div>
+            <div class="match-away">${esc(m.away)}</div>
+          </div>
+          <div class="match-sets">To play</div>
+        </div>`;
+      }
+      const t = matchTotals(m);
+      const homeWon = t.homeSets > t.awaySets;
+      return `<div class="match-card">
+        <div class="match-row">
+          <div class="match-home ${homeWon ? 'winner' : 'loser'}">${esc(m.home)}</div>
+          <div class="match-score">${t.homeSets}</div>
+          <div class="match-dash">v</div>
+          <div class="match-score">${t.awaySets}</div>
+          <div class="match-away ${homeWon ? 'loser' : 'winner'}">${esc(m.away)}</div>
+        </div>
+        <div class="match-sets">${esc(setsLine(m))}</div>
+      </div>`;
+    }).join('');
+    return `<div class="round-head">Round ${r.round}<span>${esc(r.date)}</span></div>${cards}`;
+  }).join('');
+}
+
+document.getElementById('round-filters').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  roundFilter = chip.dataset.round;
+  renderResults();
+});
+
+/* NAV */
+const VALID_VIEWS = ['table', 'results'];
+
+function switchToView(view, opts) {
+  opts = opts || {};
+  document.querySelectorAll('#main-nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+  if (!opts.skipHistory) {
+    try { history.pushState({ view }, '', '#' + view); } catch (err) { /* history unavailable */ }
+  }
+}
+
+document.getElementById('main-nav').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (btn) switchToView(btn.dataset.view);
+});
+
+window.addEventListener('popstate', e => {
+  switchToView((e.state && e.state.view) || 'table', { skipHistory: true });
+});
+
+/* INIT */
+const playedCount = DATA.rounds.reduce((n, r) => n + r.matches.filter(isPlayed).length, 0);
+const fixtureCount = DATA.rounds.reduce((n, r) => n + r.matches.length, 0);
+
+document.title = DATA.league + ' ' + DATA.season;
+document.querySelector('h1').innerHTML = esc(DATA.league).replace(/\s(\S+)$/, ' <span>$1</span>');
+document.getElementById('season-badge').textContent = DATA.season;
+document.getElementById('table-title').textContent =
+  'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
+document.getElementById('scoring-note').textContent =
+  'Best of three sets. Winner ' + DATA.points.WIN + ' points; a loser who takes a set gets ' +
+  DATA.points.LOSS_WITH_SET + ', otherwise ' + DATA.points.LOSS +
+  '. Level on points: set difference, then game difference, then wins, then pair name.';
+
+renderTable();
+renderResults();
+
+const hashView = location.hash ? location.hash.slice(1) : null;
+switchToView(VALID_VIEWS.includes(hashView) ? hashView : 'table', { skipHistory: true });
+</script>
+</body>
+</html>
