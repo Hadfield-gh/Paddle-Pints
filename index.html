@@ -121,8 +121,8 @@ table.league .pts-col{font-weight:700;color:var(--gold);}
   <section id="view-table" class="view active">
     <div class="section-title" id="table-title">League Table</div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch gold"></span> 1st</span>
-      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th</span>
+      <span class="legend-item"><span class="legend-swatch gold"></span> Group leader/winner</span>
+      <span class="legend-item"><span class="legend-swatch silver"></span> Playoff positions</span>
       <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
       <span class="legend-item">Select a pair for their results</span>
     </div>
@@ -445,9 +445,10 @@ function computeStandings() {
   }));
   table.sort((a, b) =>
     b.points - a.points ||
-    b.setDiff - a.setDiff ||
+    b.gamesWon - a.gamesWon ||
+    b.setsWon - a.setsWon ||
     b.gameDiff - a.gameDiff ||
-    b.won - a.won ||
+    b.setDiff - a.setDiff ||
     a.name.localeCompare(b.name)
   );
   table.forEach((r, i) => { r.position = i + 1; });
@@ -621,7 +622,7 @@ function paintLeague() {
   document.getElementById('scoring-note').textContent =
     'Matches are best of three, but all three sets are always played. ' +
     DATA.points.PER_SET + ' points for each set won, plus ' + DATA.points.MATCH_WIN +
-    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: set difference, then game difference, then wins, then pair name.';
+    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference.';
 
   renderTable();
   renderResults();
