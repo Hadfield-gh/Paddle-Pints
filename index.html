@@ -135,8 +135,8 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
   <section id="view-table" class="view active">
     <div class="section-title" id="table-title">League Table</div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch gold"></span> 1st</span>
-      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th</span>
+      <span class="legend-item"><span class="legend-swatch gold"></span> Finalist</span>
+      <span class="legend-item"><span class="legend-swatch silver"></span> Playoffs</span>
       <span class="legend-item"><span class="legend-swatch mid"></span> 6th–12th</span>
       <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
       <span class="legend-item">Select a pair for their results</span>
@@ -801,9 +801,9 @@ function paintLeague() {
   document.getElementById('table-title').textContent =
     'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
   document.getElementById('scoring-note').textContent =
-    'Matches are best of three, but all three sets are always played. ' +
+    'Matches are best of three and all three sets are always played. ' +
     DATA.points.PER_SET + ' points for each set won, plus ' + DATA.points.MATCH_WIN +
-    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference.';
+    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference. Rotate for expanded table.';
 
   renderTable();
   renderResults();
