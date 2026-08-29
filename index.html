@@ -151,7 +151,7 @@ const CONFIG = {
   sheetId: "1dT1QG8O83yCk34o7dQH_i5ROgNN6lV2O3juPmj94bKk",
   teamsSheet: "Teams",
   fixturesSheet: "Fixtures",
-  points: { WIN: 3, LOSS_WITH_SET: 1, LOSS: 0 },
+  points: { PER_SET: 2, MATCH_WIN: 1 },
   highlight: { top: 2, bottom: 2 }
 };
 
@@ -373,8 +373,9 @@ function matchTotals(match) {
 }
 
 function pointsFor(setsWon, setsLost) {
-  if (setsWon > setsLost) return DATA.points.WIN;
-  return setsWon > 0 ? DATA.points.LOSS_WITH_SET : DATA.points.LOSS;
+  const perSet = DATA.points.PER_SET;
+  const matchWin = DATA.points.MATCH_WIN;
+  return setsWon * perSet + (setsWon > setsLost ? matchWin : 0);
 }
 
 function setScore(match) {
@@ -610,9 +611,9 @@ function paintLeague() {
   document.getElementById('table-title').textContent =
     'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
   document.getElementById('scoring-note').textContent =
-    'Best of three sets. Winner ' + DATA.points.WIN + ' points; a loser who takes a set gets ' +
-    DATA.points.LOSS_WITH_SET + ', otherwise ' + DATA.points.LOSS +
-    '. Level on points: set difference, then game difference, then wins, then pair name.';
+    'Matches are best of three, but all three sets are always played. ' +
+    DATA.points.PER_SET + ' points for each set won, plus ' + DATA.points.MATCH_WIN +
+    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: set difference, then game difference, then wins, then pair name.';
 
   renderTable();
   renderResults();
