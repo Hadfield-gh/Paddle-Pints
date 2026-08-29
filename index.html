@@ -20,6 +20,12 @@ header{background:linear-gradient(180deg,var(--bg2),var(--bg));border-bottom:3px
 h1{font-family:var(--font-display);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:1.4rem;margin:0 0 12px;}
 h1 span{color:var(--gold);}
 .season-badge{font-family:var(--font-mono);font-size:.75rem;color:var(--chalk-dim);background:var(--panel);padding:3px 10px;border-radius:999px;border:1px solid var(--border);}
+.sheet-status{font-family:var(--font-mono);font-size:.7rem;color:var(--chalk-dim);padding:6px 0 10px;display:flex;align-items:center;gap:8px;}
+.sheet-status .dot{width:7px;height:7px;border-radius:50%;background:var(--chalk-dim);display:inline-block;flex-shrink:0;}
+.sheet-status.ok .dot{background:var(--green);}
+.sheet-status.error .dot{background:var(--red);}
+.sheet-status button{background:none;border:1px solid var(--border);color:var(--chalk-dim);font-family:var(--font-mono);font-size:.68rem;padding:2px 8px;border-radius:4px;cursor:pointer;margin-left:auto;}
+.sheet-status button:hover{color:var(--chalk);border-color:var(--gold);}
 
 nav{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 nav button{background:0;border:0;border-bottom:3px solid transparent;color:var(--chalk-dim);font-family:var(--font-display);text-transform:uppercase;letter-spacing:.05em;font-size:.85rem;padding:8px 14px 10px;cursor:pointer;white-space:nowrap;}
@@ -103,6 +109,10 @@ table.league .pts-col{font-weight:700;color:var(--gold);}
     <button class="active" data-view="table">Table</button>
     <button data-view="results">Results</button>
   </nav>
+  <div id="sheet-status" class="sheet-status">
+    <span class="dot"></span><span id="sheet-status-text">Loading league data...</span>
+    <button type="button" id="sheet-refresh">Refresh</button>
+  </div>
 </header>
 
 <main>
@@ -135,60 +145,190 @@ table.league .pts-col{font-weight:700;color:var(--gold);}
 </main>
 
 <script>
-/* ---------------------------------------------------------------------------
-   YOUR LEAGUE. Edit this block only.
-
-   - Each match has "sets": [[homeGames, awayGames], ...]
-   - Leave "sets" as [] for a fixture that has not been played yet.
-   - Everything else on the page (points, positions, form) is worked out
-     from these results.
---------------------------------------------------------------------------- */
-const DATA = {
+const CONFIG = {
   league: "Padel League",
   season: "2026",
-  pairs: [
-    { name: "Ace & Smash",     players: "Elena Voss / Marco Ruiz" },
-    { name: "Net Setters",     players: "Priya Shah / Tom Hale" },
-    { name: "Glass Wall",      players: "Sofia Lind / James Okonkwo" },
-    { name: "The Lobsters",    players: "Mia Chen / Alex Petrov" },
-    { name: "Baseline Club",   players: "Nora Berg / Luis Santos" },
-    { name: "Drop Shot",       players: "Hannah Kim / Omar Farid" },
-    { name: "Golden Bandeja",  players: "Clara Rossi / Ben Walker" },
-    { name: "Cross Court",     players: "Yara Nasser / Sam Wright" }
-  ],
-  rounds: [
-    { round: 1, date: "5 Mar 2026", matches: [
-      { home: "Ace & Smash",    away: "Cross Court",      sets: [[6,2],[6,3]] },
-      { home: "Net Setters",    away: "Golden Bandeja",   sets: [[6,4],[3,6],[7,6]] },
-      { home: "Glass Wall",     away: "Drop Shot",        sets: [[6,3],[6,4]] },
-      { home: "The Lobsters",   away: "Baseline Club",    sets: [[4,6],[6,4],[6,3]] }
-    ]},
-    { round: 2, date: "12 Mar 2026", matches: [
-      { home: "Ace & Smash",    away: "Baseline Club",    sets: [[6,1],[6,4]] },
-      { home: "Cross Court",    away: "Drop Shot",        sets: [[3,6],[4,6]] },
-      { home: "Golden Bandeja", away: "The Lobsters",     sets: [[6,7],[6,3],[4,6]] },
-      { home: "Net Setters",    away: "Glass Wall",       sets: [[6,4],[6,4]] }
-    ]},
-    { round: 3, date: "19 Mar 2026", matches: [
-      { home: "Glass Wall",     away: "Ace & Smash",      sets: [[4,6],[6,7]] },
-      { home: "Drop Shot",      away: "Net Setters",      sets: [[6,3],[2,6],[6,4]] },
-      { home: "Baseline Club",  away: "Golden Bandeja",   sets: [[6,2],[6,1]] },
-      { home: "The Lobsters",   away: "Cross Court",      sets: [[6,4],[6,2]] }
-    ]},
-    { round: 4, date: "26 Mar 2026", matches: [
-      { home: "Ace & Smash",    away: "The Lobsters",     sets: [] },
-      { home: "Net Setters",    away: "Baseline Club",    sets: [] },
-      { home: "Glass Wall",     away: "Cross Court",      sets: [] },
-      { home: "Drop Shot",      away: "Golden Bandeja",   sets: [] }
-    ]}
-  ],
-  // Points awarded per match. Winner always takes WIN points; a loser who
-  // won a set takes LOSS_WITH_SET, otherwise nothing.
+  sheetId: "1dT1QG8O83yCk34o7dQH_i5ROgNN6lV2O3juPmj94bKk",
+  teamsSheet: "Teams",
+  fixturesSheet: "Fixtures",
   points: { WIN: 3, LOSS_WITH_SET: 1, LOSS: 0 },
-  // How many places are highlighted at the top and bottom of the table.
   highlight: { top: 2, bottom: 2 }
 };
-/* ------------------------- end of editable block ------------------------- */
+
+function spreadsheetId(value) {
+  const raw = String(value || "").trim();
+  const fromUrl = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return fromUrl ? fromUrl[1] : raw;
+}
+
+function loadGvizSheet(sheetId, sheetName) {
+  return new Promise((resolve, reject) => {
+    const cb = "gviz_" + Math.random().toString(36).slice(2);
+    const script = document.createElement("script");
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out loading the "' + sheetName + '" tab'));
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cb] = function (json) {
+      cleanup();
+      if (!json || json.status === "error") {
+        const msg =
+          json && json.errors && json.errors[0] && json.errors[0].detailed_message
+            ? json.errors[0].detailed_message
+            : 'Could not read the "' + sheetName + '" tab. Check the tab name and sharing.';
+        reject(new Error(msg));
+        return;
+      }
+      resolve(json);
+    };
+
+    script.onerror = function () {
+      cleanup();
+      reject(new Error("Could not reach Google Sheets"));
+    };
+
+    script.src =
+      "https://docs.google.com/spreadsheets/d/" +
+      encodeURIComponent(sheetId) +
+      "/gviz/tq?tqx=out:json;responseHandler:" +
+      cb +
+      "&sheet=" +
+      encodeURIComponent(sheetName);
+
+    document.head.appendChild(script);
+  });
+}
+
+function rowsFromGviz(json) {
+  const cols = (json.table.cols || []).map(function (col) {
+    return String(col.label || col.id || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+  });
+
+  return (json.table.rows || [])
+    .map(function (row) {
+      const obj = {};
+      (row.c || []).forEach(function (cell, i) {
+        if (!cols[i]) return;
+        if (!cell) {
+          obj[cols[i]] = "";
+          return;
+        }
+        obj[cols[i]] =
+          cell.f != null && String(cell.f).trim() !== "" ? cell.f : cell.v == null ? "" : cell.v;
+      });
+      return obj;
+    })
+    .filter(function (row) {
+      return Object.keys(row).some(function (key) {
+        return String(row[key]).trim() !== "";
+      });
+    });
+}
+
+function cell(row, names) {
+  for (let i = 0; i < names.length; i++) {
+    if (row[names[i]] !== undefined && row[names[i]] !== null && String(row[names[i]]).trim() !== "") {
+      return row[names[i]];
+    }
+  }
+  return "";
+}
+
+function parseSet(value) {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const match = text.match(/^(\d+)\s*[-–:]\s*(\d+)$/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2])];
+}
+
+function parseSets(row) {
+  const combined = cell(row, ["sets", "score", "scores"]);
+  if (combined) {
+    return String(combined).split(/[,;]/).map(parseSet).filter(Boolean);
+  }
+  const sets = [];
+  ["set1", "set2", "set3", "set4", "set5"].forEach(function (key) {
+    const parsed = parseSet(row[key]);
+    if (parsed) sets.push(parsed);
+  });
+  return sets;
+}
+
+function teamsFromSheet(json) {
+  return rowsFromGviz(json)
+    .map(function (row) {
+      return {
+        name: String(cell(row, ["name", "team", "pair"])).trim(),
+        players: String(cell(row, ["players", "player", "names"])).trim()
+      };
+    })
+    .filter(function (team) {
+      return team.name !== "";
+    });
+}
+
+function fixturesFromSheet(json) {
+  const grouped = {};
+  const order = [];
+
+  rowsFromGviz(json).forEach(function (row) {
+    const home = String(cell(row, ["home", "hometeam"])).trim();
+    const away = String(cell(row, ["away", "awayteam"])).trim();
+    if (!home || !away) return;
+
+    const round = Number(cell(row, ["round", "gw", "week"])) || 0;
+    const date = String(cell(row, ["date"])).trim();
+    const key = String(round);
+
+    if (!grouped[key]) {
+      grouped[key] = { round: round, date: date, matches: [] };
+      order.push(key);
+    } else if (date && !grouped[key].date) {
+      grouped[key].date = date;
+    }
+
+    grouped[key].matches.push({
+      home: home,
+      away: away,
+      sets: parseSets(row)
+    });
+  });
+
+  return order.map(function (key) {
+    return grouped[key];
+  });
+}
+
+async function loadLeagueFromSheet(config) {
+  const id = spreadsheetId(config.sheetId);
+  const teamsJson = await loadGvizSheet(id, config.teamsSheet);
+  const fixturesJson = await loadGvizSheet(id, config.fixturesSheet);
+  return {
+    teams: teamsFromSheet(teamsJson),
+    fixtures: fixturesFromSheet(fixturesJson)
+  };
+}
+
+const DATA = {
+  league: CONFIG.league,
+  season: CONFIG.season,
+  pairs: [],
+  rounds: [],
+  points: CONFIG.points,
+  highlight: CONFIG.highlight
+};
 
 function esc(str) {
   const d = document.createElement('div');
@@ -307,7 +447,7 @@ function renderTable() {
   const totalPlayed = DATA.rounds.reduce((n, r) => n + r.matches.filter(isPlayed).length, 0);
 
   if (!table.length) {
-    tbody.innerHTML = '<tr><td colspan="13" class="empty">No pairs yet. Add them to DATA.pairs.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="empty">No pairs yet. Add them on the Teams tab of the Google Sheet, starting at row 2.</td></tr>';
     return;
   }
 
@@ -432,24 +572,61 @@ window.addEventListener('popstate', e => {
 });
 
 /* INIT */
-const playedCount = DATA.rounds.reduce((n, r) => n + r.matches.filter(isPlayed).length, 0);
-const fixtureCount = DATA.rounds.reduce((n, r) => n + r.matches.length, 0);
+function setSheetStatus(text, cls) {
+  const el = document.getElementById('sheet-status');
+  const textEl = document.getElementById('sheet-status-text');
+  if (textEl) textEl.textContent = text;
+  if (el) el.className = 'sheet-status' + (cls ? ' ' + cls : '');
+}
 
-document.title = DATA.league + ' ' + DATA.season;
-document.querySelector('h1').innerHTML = esc(DATA.league).replace(/\s(\S+)$/, ' <span>$1</span>');
-document.getElementById('season-badge').textContent = DATA.season;
-document.getElementById('table-title').textContent =
-  'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
-document.getElementById('scoring-note').textContent =
-  'Best of three sets. Winner ' + DATA.points.WIN + ' points; a loser who takes a set gets ' +
-  DATA.points.LOSS_WITH_SET + ', otherwise ' + DATA.points.LOSS +
-  '. Level on points: set difference, then game difference, then wins, then pair name.';
+function paintLeague() {
+  const playedCount = DATA.rounds.reduce((n, r) => n + r.matches.filter(isPlayed).length, 0);
+  const fixtureCount = DATA.rounds.reduce((n, r) => n + r.matches.length, 0);
 
-renderTable();
-renderResults();
+  document.title = DATA.league + ' ' + DATA.season;
+  document.querySelector('h1').innerHTML = esc(DATA.league).replace(/\s(\S+)$/, ' <span>$1</span>');
+  document.getElementById('season-badge').textContent = DATA.season;
+  document.getElementById('table-title').textContent =
+    'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
+  document.getElementById('scoring-note').textContent =
+    'Best of three sets. Winner ' + DATA.points.WIN + ' points; a loser who takes a set gets ' +
+    DATA.points.LOSS_WITH_SET + ', otherwise ' + DATA.points.LOSS +
+    '. Level on points: set difference, then game difference, then wins, then pair name.';
+
+  renderTable();
+  renderResults();
+}
+
+async function boot() {
+  DATA.league = CONFIG.league;
+  DATA.season = CONFIG.season;
+  DATA.points = CONFIG.points;
+  DATA.highlight = CONFIG.highlight;
+
+  setSheetStatus('Loading from Google Sheet...', '');
+  try {
+    const loaded = await loadLeagueFromSheet(CONFIG);
+    DATA.pairs = loaded.teams;
+    DATA.rounds = loaded.fixtures;
+    paintLeague();
+    if (!DATA.pairs.length) {
+      setSheetStatus('Connected to your Google Sheet. Add pairs on the Teams tab (row 2 onwards), then click Refresh.', '');
+    } else {
+      setSheetStatus('Showing live data from Google Sheet.', 'ok');
+    }
+  } catch (err) {
+    DATA.pairs = [];
+    DATA.rounds = [];
+    paintLeague();
+    setSheetStatus('Could not load the Google Sheet. Share it as Anyone with the link → Viewer. ' + err.message, 'error');
+  }
+}
+
+document.getElementById('sheet-refresh').addEventListener('click', boot);
 
 const hashView = location.hash ? location.hash.slice(1) : null;
 switchToView(VALID_VIEWS.includes(hashView) ? hashView : 'table', { skipHistory: true });
+boot();
 </script>
 </body>
 </html>
