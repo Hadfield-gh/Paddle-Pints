@@ -124,6 +124,7 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
   <nav id="main-nav">
     <button class="active" data-view="table">Table</button>
     <button data-view="results">Results</button>
+    <button data-view="late-fixtures">Late Fixtures</button>
   </nav>
   <div id="sheet-status" class="sheet-status">
     <span class="dot"></span><span id="sheet-status-text">Loading league data...</span>
@@ -135,8 +136,8 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
   <section id="view-table" class="view active">
     <div class="section-title" id="table-title">League Table</div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch gold"></span> Finalist</span>
-      <span class="legend-item"><span class="legend-swatch silver"></span> Playoffs</span>
+      <span class="legend-item"><span class="legend-swatch gold"></span> 1st</span>
+      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th</span>
       <span class="legend-item"><span class="legend-swatch mid"></span> 6th–12th</span>
       <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
       <span class="legend-item">Select a pair for their results</span>
@@ -159,6 +160,13 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
     <div class="section-title">All Results</div>
     <div class="filters" id="round-filters"></div>
     <div id="results-list"></div>
+  </section>
+
+  <section id="view-late-fixtures" class="view">
+    <div class="section-title" id="late-title">Late Fixtures</div>
+    <p class="note" id="late-note"></p>
+    <div class="filters" id="late-round-filters"></div>
+    <div id="late-fixtures-list"></div>
   </section>
 </main>
 
@@ -544,6 +552,65 @@ function isPlayed(match) {
   return Array.isArray(match.sets) && match.sets.length > 0;
 }
 
+function parseRoundDate(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+
+  let parts = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (parts) return new Date(Number(parts[3]), Number(parts[2]) - 1, Number(parts[1]));
+
+  parts = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (parts) return new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function addDays(date, days) {
+  const copy = new Date(date.getTime());
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+// Monday of the week a date falls in.
+function weekCommencing(date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const offset = (start.getDay() + 6) % 7;
+  return addDays(start, -offset);
+}
+
+function formatDate(date) {
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// A fixture is late when no result has been entered and its round was due
+// before the current week started. Each round gets its own week plus the
+// following week, so a round is only chased once that grace week has ended.
+function lateRoundsFrom(rounds) {
+  const cutoff = addDays(weekCommencing(new Date()), -7);
+
+  return rounds
+    .map(r => {
+      const scheduled = parseRoundDate(r.date);
+      if (!scheduled) return null;
+
+      const roundWeek = weekCommencing(scheduled);
+      if (roundWeek.getTime() >= cutoff.getTime()) return null;
+
+      const outstanding = r.matches.filter(m => !isPlayed(m));
+      if (!outstanding.length) return null;
+
+      return {
+        round: r.round,
+        date: r.date,
+        dueBy: formatDate(addDays(roundWeek, 13)),
+        matches: outstanding
+      };
+    })
+    .filter(Boolean);
+}
+
 // Sets and games won by each side of a single match.
 function matchTotals(match) {
   let homeSets = 0, awaySets = 0, homeGames = 0, awayGames = 0;
@@ -703,28 +770,18 @@ document.getElementById('table-body').addEventListener('click', e => {
 });
 
 let roundFilter = 'all';
+let lateRoundFilter = 'all';
 
-function renderFilters() {
-  const chips = ['<button class="chip' + (roundFilter === 'all' ? ' active' : '') + '" data-round="all">All rounds</button>']
-    .concat(DATA.rounds.map(r =>
-      `<button class="chip${roundFilter === String(r.round) ? ' active' : ''}" data-round="${r.round}">Round ${r.round}</button>`
+function renderRoundFilters(rounds, activeRound, containerId) {
+  const chips = ['<button class="chip' + (activeRound === 'all' ? ' active' : '') + '" data-round="all">All rounds</button>']
+    .concat(rounds.map(r =>
+      `<button class="chip${activeRound === String(r.round) ? ' active' : ''}" data-round="${r.round}">Round ${r.round}</button>`
     ));
-  document.getElementById('round-filters').innerHTML = chips.join('');
+  document.getElementById(containerId).innerHTML = chips.join('');
 }
 
-function renderResults() {
-  renderFilters();
-  const rounds = roundFilter === 'all'
-    ? DATA.rounds
-    : DATA.rounds.filter(r => String(r.round) === roundFilter);
-  const list = document.getElementById('results-list');
-
-  if (!rounds.length) {
-    list.innerHTML = '<div class="empty">No fixtures for this round.</div>';
-    return;
-  }
-
-  list.innerHTML = rounds.map(r => {
+function matchCardsHtml(rounds, showDueBy) {
+  return rounds.map(r => {
     const cards = r.matches.map(m => {
       if (!isPlayed(m)) {
         return `<div class="match-card match-future">
@@ -751,8 +808,51 @@ function renderResults() {
         <div class="match-sets">${esc(setsLine(m))}</div>
       </div>`;
     }).join('');
-    return `<div class="round-head">Round ${r.round}<span>${esc(r.date)}</span></div>${cards}`;
+    const due = showDueBy && r.dueBy ? `<span>due by ${esc(r.dueBy)}</span>` : '';
+    return `<div class="round-head">Round ${r.round}<span>${esc(r.date)}</span>${due}</div>${cards}`;
   }).join('');
+}
+
+function renderFixtureView(rounds, activeRound, filterId, listId, emptyMsg, showDueBy) {
+  renderRoundFilters(rounds, activeRound, filterId);
+  const list = document.getElementById(listId);
+  const filtered = activeRound === 'all'
+    ? rounds
+    : rounds.filter(r => String(r.round) === activeRound);
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty">' + emptyMsg + '</div>';
+    return;
+  }
+  list.innerHTML = matchCardsHtml(filtered, showDueBy);
+}
+
+function renderResults() {
+  renderFixtureView(
+    DATA.rounds,
+    roundFilter,
+    'round-filters',
+    'results-list',
+    'No fixtures for this round.'
+  );
+}
+
+function renderLateFixtures() {
+  const rounds = lateRoundsFrom(DATA.rounds);
+  const outstanding = rounds.reduce((n, r) => n + r.matches.length, 0);
+
+  document.getElementById('late-title').textContent = outstanding
+    ? 'Late Fixtures — ' + outstanding + ' outstanding'
+    : 'Late Fixtures';
+
+  renderFixtureView(
+    rounds,
+    lateRoundFilter,
+    'late-round-filters',
+    'late-fixtures-list',
+    'Nothing overdue. Every round up to last week has a result.',
+    true
+  );
 }
 
 document.getElementById('round-filters').addEventListener('click', e => {
@@ -762,8 +862,15 @@ document.getElementById('round-filters').addEventListener('click', e => {
   renderResults();
 });
 
+document.getElementById('late-round-filters').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  lateRoundFilter = chip.dataset.round;
+  renderLateFixtures();
+});
+
 /* NAV */
-const VALID_VIEWS = ['table', 'results'];
+const VALID_VIEWS = ['table', 'results', 'late-fixtures'];
 
 function switchToView(view, opts) {
   opts = opts || {};
@@ -801,12 +908,17 @@ function paintLeague() {
   document.getElementById('table-title').textContent =
     'League Table — ' + playedCount + ' of ' + fixtureCount + ' matches played';
   document.getElementById('scoring-note').textContent =
-    'Matches are best of three and all three sets are always played. ' +
+    'Matches are best of three, but all three sets are always played. ' +
     DATA.points.PER_SET + ' points for each set won, plus ' + DATA.points.MATCH_WIN +
-    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference. Rotate for expanded table.';
+    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference.';
+
+  document.getElementById('late-note').textContent =
+    'A fixture is late when the sheet has no result and the round was due before this week started. ' +
+    'Each round gets its own week plus the following week to be played.';
 
   renderTable();
   renderResults();
+  renderLateFixtures();
 }
 
 async function boot() {
