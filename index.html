@@ -542,8 +542,86 @@ function esc(str) {
   return d.innerHTML;
 }
 
+function normalizeKey(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .toLowerCase()
+    .replace(/[’'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// "Steven, Ashley" and "Ashley & Steven" describe the same pair, so compare a
+// sorted list of the individual names rather than the text as typed.
+function playersKey(value) {
+  return normalizeKey(value)
+    .split(/[,&/+]|\band\b|\bv\b|\bvs\b/)
+    .map(part => part.trim())
+    .filter(Boolean)
+    .sort()
+    .join('|');
+}
+
+let teamIndex = new Map();
+
+// Fixtures can name a pair by its Teams-tab number or by its players.
+function buildTeamIndex(pairs) {
+  const index = new Map();
+  const add = (key, name) => {
+    if (key && !index.has(key)) index.set(key, name);
+  };
+
+  pairs.forEach(pair => {
+    add(normalizeKey(pair.name), pair.name);
+    add(normalizeKey(pair.players), pair.name);
+    add(playersKey(pair.players), pair.name);
+  });
+
+  // A single first name is only safe to match when one pair uses it.
+  const singles = new Map();
+  pairs.forEach(pair => {
+    playersKey(pair.players)
+      .split('|')
+      .filter(Boolean)
+      .forEach(part => {
+        singles.set(part, singles.has(part) ? null : pair.name);
+      });
+  });
+  singles.forEach((name, key) => {
+    if (name) add(key, name);
+  });
+
+  return index;
+}
+
+function resolveTeam(value) {
+  const raw = String(value === undefined || value === null ? '' : value).trim();
+  if (!raw) return null;
+  return teamIndex.get(normalizeKey(raw)) || teamIndex.get(playersKey(raw)) || null;
+}
+
+// Rewrite every fixture to the canonical pair name, whichever form the sheet
+// used, and report anything that matched no pair.
+function resolveFixtures(rounds) {
+  const unknown = [];
+
+  const resolved = rounds.map(r => ({
+    round: r.round,
+    date: r.date,
+    matches: r.matches.map(m => {
+      const home = resolveTeam(m.home);
+      const away = resolveTeam(m.away);
+      if (!home && String(m.home).trim()) unknown.push(String(m.home).trim());
+      if (!away && String(m.away).trim()) unknown.push(String(m.away).trim());
+      return { home: home || m.home, away: away || m.away, sets: m.sets };
+    })
+  }));
+
+  return { rounds: resolved, unknown: [...new Set(unknown)] };
+}
+
 function pairLabel(teamName) {
-  const pair = DATA.pairs.find(p => p.name === teamName);
+  const canonical = resolveTeam(teamName) || teamName;
+  const pair = DATA.pairs.find(p => p.name === canonical);
   if (pair && String(pair.players).trim()) return pair.players;
   return teamName || '';
 }
@@ -931,16 +1009,29 @@ async function boot() {
   try {
     const loaded = await loadLeagueFromSheet(CONFIG);
     DATA.pairs = loaded.teams;
-    DATA.rounds = loaded.fixtures;
+    teamIndex = buildTeamIndex(DATA.pairs);
+
+    const fixtures = resolveFixtures(loaded.fixtures);
+    DATA.rounds = fixtures.rounds;
     paintLeague();
+
     if (!DATA.pairs.length) {
       setSheetStatus('Connected to your Google Sheet. Add pairs on the Teams tab (row 2 onwards), then click Refresh.', '');
+    } else if (fixtures.unknown.length) {
+      setSheetStatus(
+        'Showing live data, but these home/away entries match no pair: ' +
+          fixtures.unknown.slice(0, 4).join('; ') +
+          (fixtures.unknown.length > 4 ? ' and ' + (fixtures.unknown.length - 4) + ' more' : '') +
+          '. Use the team number or the players exactly as on the Teams tab.',
+        'error'
+      );
     } else {
       setSheetStatus('Showing live data from Google Sheet.', 'ok');
     }
   } catch (err) {
     DATA.pairs = [];
     DATA.rounds = [];
+    teamIndex = new Map();
     paintLeague();
     setSheetStatus('Could not load the Google Sheet. Share it as Anyone with the link → Viewer. ' + err.message, 'error');
   }
