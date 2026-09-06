@@ -172,14 +172,8 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
 }
 .po-winner-banner .kicker{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;color:var(--gold);}
 .po-winner-banner .who{font-size:1.25rem;font-weight:700;margin-top:4px;}
-.final-section{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) 28px minmax(0,1.05fr);
-  gap:8px 10px;
-  margin-top:14px;
-  align-items:stretch;
-}
-.final-section .po-card{grid-column:3;width:100%;max-width:none;}
+.final-section{margin-top:18px;}
+.final-section .po-card{width:100%;max-width:none;}
 
 @media(max-width:600px){
   .match-row{grid-template-columns:1fr auto 22px auto 1fr;font-size:.8rem;}
@@ -188,8 +182,6 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
   .hide-sm{display:none;}
   .bracket{grid-template-columns:1fr;}
   .bracket-join{display:none;}
-  .final-section{grid-template-columns:1fr;}
-  .final-section .po-card{grid-column:1;}
 }
 </style>
 </head>
