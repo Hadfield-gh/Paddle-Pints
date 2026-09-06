@@ -107,11 +107,66 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
 .match-card:not(.match-future) .loser{color:var(--chalk-dim);}
 .empty{padding:30px 16px;text-align:center;color:var(--chalk-dim);font-size:.85rem;}
 
+/* PLAYOFFS */
+.champion-banner{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;
+  background:rgba(212,168,67,.14);border:1px solid rgba(212,168,67,.45);border-radius:8px;
+  padding:14px 16px;margin-bottom:18px;
+}
+.champion-banner .kicker{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:var(--gold);}
+.champion-banner .who{font-weight:600;font-size:1.05rem;}
+.champion-banner .meta{font-family:var(--font-mono);font-size:.75rem;color:var(--chalk-dim);}
+
+.bracket{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 28px minmax(0,1.05fr);
+  gap:8px 10px;
+  align-items:stretch;
+}
+.bracket-col{display:flex;flex-direction:column;gap:14px;justify-content:center;}
+.bracket-join{position:relative;min-height:100%;}
+.bracket-join::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:18%;
+  bottom:18%;
+  width:14px;
+  border:2px solid var(--border);
+  border-left:none;
+  transform:translateX(-2px);
+}
+.po-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 14px 12px;}
+.po-card.final-card{border-color:var(--gold);box-shadow:inset 0 0 0 1px rgba(212,168,67,.25);}
+.po-label{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.05em;font-size:.72rem;color:var(--chalk-dim);margin-bottom:10px;}
+.po-card.final-card .po-label{color:var(--gold);}
+.po-side{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:center;padding:8px 4px;border-radius:6px;}
+.po-side + .po-side{border-top:1px solid rgba(45,90,62,.5);}
+.po-side.won{background:rgba(212,168,67,.12);}
+.po-side.lost{opacity:.72;}
+.po-seed{font-family:var(--font-mono);font-size:.72rem;font-weight:700;color:var(--silver);text-align:center;}
+.po-name{font-weight:600;font-size:.9rem;white-space:normal;}
+.po-name.tbd{color:var(--chalk-dim);font-weight:500;font-style:italic;}
+.po-sets-won{font-family:var(--font-mono);font-weight:700;color:var(--gold);min-width:1.2em;text-align:right;}
+.po-sets-line{font-family:var(--font-mono);font-size:.75rem;color:var(--chalk-dim);text-align:center;margin-top:8px;}
+.po-winner-banner{
+  margin-top:16px;
+  text-align:center;
+  background:rgba(212,168,67,.16);
+  border:1px solid var(--gold);
+  border-radius:8px;
+  padding:16px;
+}
+.po-winner-banner .kicker{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;color:var(--gold);}
+.po-winner-banner .who{font-size:1.25rem;font-weight:700;margin-top:4px;}
+
 @media(max-width:600px){
   .match-row{grid-template-columns:1fr auto 22px auto 1fr;font-size:.8rem;}
   .match-home,.match-away{font-size:.78rem;}
   nav button{font-size:.75rem;padding:6px 10px 8px;}
   .hide-sm{display:none;}
+  .bracket{grid-template-columns:1fr;}
+  .bracket-join{display:none;}
 }
 </style>
 </head>
@@ -124,6 +179,7 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
   <nav id="main-nav">
     <button class="active" data-view="table">Table</button>
     <button data-view="results">Results/Fixtures</button>
+    <button data-view="playoffs">Play-offs</button>
     <button data-view="late-fixtures">Late Fixtures</button>
   </nav>
   <div id="sheet-status" class="sheet-status">
@@ -136,8 +192,8 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
   <section id="view-table" class="view active">
     <div class="section-title" id="table-title">League Table</div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch gold"></span> 1st</span>
-      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th</span>
+      <span class="legend-item"><span class="legend-swatch gold"></span> 1st — league champions</span>
+      <span class="legend-item"><span class="legend-swatch silver"></span> 2nd–5th — play-off places</span>
       <span class="legend-item"><span class="legend-swatch mid"></span> 6th–12th</span>
       <span class="legend-item"><span class="legend-swatch bottom"></span> Relegation places</span>
       <span class="legend-item">Select a pair for their results</span>
@@ -162,6 +218,13 @@ table.league tbody tr.green-row .pos-col{color:#8fb89a;}
     <div id="results-list"></div>
   </section>
 
+  <section id="view-playoffs" class="view">
+    <div class="section-title">Play-offs</div>
+    <div id="playoffs-banner"></div>
+    <div id="playoffs-bracket"></div>
+    <p class="note" id="playoffs-note"></p>
+  </section>
+
   <section id="view-late-fixtures" class="view">
     <div class="section-title" id="late-title">Late Fixtures</div>
     <p class="note" id="late-note"></p>
@@ -177,10 +240,12 @@ const CONFIG = {
   sheetId: "1dT1QG8O83yCk34o7dQH_i5ROgNN6lV2O3juPmj94bKk",
   teamsSheet: "Teams",
   fixturesSheet: "Fixtures",
+  playoffsSheet: "Playoffs",
   // Tab ids from the sheet URL (#gid=...). These read the tab exactly as
   // typed; without them Google's feed drops scores such as 6-0.
   teamsGid: "0",
   fixturesGid: "34666147",
+  playoffsGid: "",
   points: { PER_SET: 2, MATCH_WIN: 1 },
   highlight: { gold: 1, silverFrom: 2, silverTo: 5, greenFrom: 6, greenTo: 12, bottom: 2 }
 };
@@ -500,6 +565,21 @@ function fixturesFromRows(rows) {
   });
 }
 
+function playoffRowsFromSheet(rows) {
+  return rows
+    .map(function (row) {
+      return {
+        stage: String(cell(row, ["stage", "round", "match", "tie", "fixture"])).trim(),
+        home: String(cell(row, ["home", "hometeam"])).trim(),
+        away: String(cell(row, ["away", "awayteam"])).trim(),
+        sets: parseSets(row)
+      };
+    })
+    .filter(function (row) {
+      return row.home || row.away || row.stage;
+    });
+}
+
 async function loadSheetRows(sheetId, sheetName, gid) {
   if (gid !== undefined && gid !== null && String(gid).trim() !== "") {
     try {
@@ -521,9 +601,18 @@ async function loadLeagueFromSheet(config) {
   const id = spreadsheetId(config.sheetId);
   const teamRows = await loadSheetRows(id, config.teamsSheet, config.teamsGid);
   const fixtureRows = await loadSheetRows(id, config.fixturesSheet, config.fixturesGid);
+  let playoffRows = [];
+  let playoffsMissing = false;
+  try {
+    playoffRows = await loadSheetRows(id, config.playoffsSheet, config.playoffsGid);
+  } catch (err) {
+    playoffsMissing = true;
+  }
   return {
     teams: teamsFromRows(teamRows),
-    fixtures: fixturesFromRows(fixtureRows)
+    fixtures: fixturesFromRows(fixtureRows),
+    playoffRows: playoffRowsFromSheet(playoffRows),
+    playoffsMissing: playoffsMissing
   };
 }
 
@@ -532,6 +621,8 @@ const DATA = {
   season: CONFIG.season,
   pairs: [],
   rounds: [],
+  playoffRows: [],
+  playoffsMissing: true,
   points: CONFIG.points,
   highlight: CONFIG.highlight
 };
@@ -597,6 +688,14 @@ function resolveTeam(value) {
   const raw = String(value === undefined || value === null ? '' : value).trim();
   if (!raw) return null;
   return teamIndex.get(normalizeKey(raw)) || teamIndex.get(playersKey(raw)) || null;
+}
+
+function resolveMatchSides(match) {
+  return {
+    home: resolveTeam(match.home) || match.home,
+    away: resolveTeam(match.away) || match.away,
+    sets: Array.isArray(match.sets) ? match.sets : []
+  };
 }
 
 // Rewrite every fixture to the canonical pair name, whichever form the sheet
@@ -713,6 +812,13 @@ function setScore(match) {
 
 function setsLine(match) {
   return match.sets.map(([h, a]) => h + '-' + a).join(', ');
+}
+
+function matchWinner(match) {
+  if (!isPlayed(match)) return null;
+  const t = matchTotals(match);
+  if (t.homeSets === t.awaySets) return null;
+  return t.homeSets > t.awaySets ? match.home : match.away;
 }
 
 // Every played match a pair appears in, oldest first, from that pair's side.
@@ -947,8 +1053,182 @@ document.getElementById('late-round-filters').addEventListener('click', e => {
   renderLateFixtures();
 });
 
+/* PLAYOFFS */
+function samePair(a, b) {
+  const left = resolveTeam(a) || a;
+  const right = resolveTeam(b) || b;
+  if (!left || !right) return false;
+  return normalizeKey(left) === normalizeKey(right) || playersKey(left) === playersKey(right);
+}
+
+function matchUsesPairs(match, pairA, pairB) {
+  if (!pairA || !pairB || !match) return false;
+  const sides = [match.home, match.away];
+  return sides.some(s => samePair(s, pairA)) && sides.some(s => samePair(s, pairB));
+}
+
+function classifyPlayoffStage(row, seeds) {
+  const stage = normalizeKey(row.stage).replace(/versus|vs\.?/g, 'v');
+  const isFinal = /(^| )final/.test(stage) && !/semi/.test(stage);
+  if (isFinal) return 'final';
+  if (/(2)\s*v\s*(5)|sf\s*1|semi\s*1|semi-?final\s*1/.test(stage)) return 'sf25';
+  if (/(3)\s*v\s*(4)|sf\s*2|semi\s*2|semi-?final\s*2/.test(stage)) return 'sf34';
+  if (seeds) {
+    if (matchUsesPairs(row, seeds[2], seeds[5])) return 'sf25';
+    if (matchUsesPairs(row, seeds[3], seeds[4])) return 'sf34';
+  }
+  if (/semi/.test(stage)) return 'semi';
+  return '';
+}
+
+function fillMatch(preferredHome, preferredAway, sheetMatch) {
+  if (!sheetMatch) {
+    return { home: preferredHome || '', away: preferredAway || '', sets: [] };
+  }
+  const resolved = resolveMatchSides(sheetMatch);
+  return {
+    home: resolved.home || preferredHome || '',
+    away: resolved.away || preferredAway || '',
+    sets: resolved.sets
+  };
+}
+
+function buildPlayoffs() {
+  const table = computeStandings();
+  const seeds = table.length >= 5
+    ? {
+        1: table[0].name,
+        2: table[1].name,
+        3: table[2].name,
+        4: table[3].name,
+        5: table[4].name,
+        rows: table
+      }
+    : null;
+
+  const rows = (DATA.playoffRows || []).map(resolveMatchSides);
+  const used = new Set();
+  const take = (id) => {
+    const idx = rows.findIndex((row, i) => !used.has(i) && classifyPlayoffStage(row, seeds && {
+      2: seeds[2], 3: seeds[3], 4: seeds[4], 5: seeds[5]
+    }) === id);
+    if (idx === -1) return null;
+    used.add(idx);
+    return rows[idx];
+  };
+
+  let sf25 = take('sf25');
+  let sf34 = take('sf34');
+  rows.forEach(function (row, i) {
+    if (used.has(i)) return;
+    if (classifyPlayoffStage(row, seeds && {
+      2: seeds[2], 3: seeds[3], 4: seeds[4], 5: seeds[5]
+    }) !== 'semi') return;
+    if (!sf25) { used.add(i); sf25 = row; }
+    else if (!sf34) { used.add(i); sf34 = row; }
+  });
+
+  const finalRow = take('final');
+
+  const sf25Match = fillMatch(seeds && seeds[2], seeds && seeds[5], sf25);
+  const sf34Match = fillMatch(seeds && seeds[3], seeds && seeds[4], sf34);
+  const sf25Winner = matchWinner(sf25Match);
+  const sf34Winner = matchWinner(sf34Match);
+  const finalMatch = fillMatch(sf25Winner, sf34Winner, finalRow);
+  const champion = matchWinner(finalMatch);
+
+  return {
+    ready: !!seeds,
+    seeds,
+    sf25: sf25Match,
+    sf34: sf34Match,
+    final: finalMatch,
+    sf25Winner,
+    sf34Winner,
+    champion,
+    leagueChampion: seeds ? seeds[1] : null
+  };
+}
+
+function playoffSideHtml(name, seed, setsWon, outcome, placeholder) {
+  const tbd = !name;
+  const label = tbd ? placeholder : pairLabel(name);
+  const cls = ['po-side'];
+  if (outcome === 'won') cls.push('won');
+  if (outcome === 'lost') cls.push('lost');
+  return `<div class="${cls.join(' ')}">
+    <div class="po-seed">${seed ? seed : '—'}</div>
+    <div class="po-name${tbd ? ' tbd' : ''}">${esc(label)}</div>
+    <div class="po-sets-won">${setsWon == null ? '' : setsWon}</div>
+  </div>`;
+}
+
+function seedFor(name, seeds) {
+  if (!name || !seeds) return '';
+  for (const pos of [2, 3, 4, 5]) {
+    if (samePair(name, seeds[pos])) return String(pos);
+  }
+  return '';
+}
+
+function playoffCardHtml(title, match, extraClass, placeholders, seeds) {
+  const played = isPlayed(match);
+  const t = played ? matchTotals(match) : null;
+  const winner = matchWinner(match);
+  const homeOutcome = !played ? '' : (winner && samePair(winner, match.home) ? 'won' : 'lost');
+  const awayOutcome = !played ? '' : (winner && samePair(winner, match.away) ? 'won' : 'lost');
+  return `<article class="po-card ${extraClass || ''}">
+    <div class="po-label">${esc(title)}</div>
+    ${playoffSideHtml(match.home, seedFor(match.home, seeds), t ? t.homeSets : null, homeOutcome, placeholders[0])}
+    ${playoffSideHtml(match.away, seedFor(match.away, seeds), t ? t.awaySets : null, awayOutcome, placeholders[1])}
+    <div class="po-sets-line">${played ? esc(setsLine(match)) : 'To play'}</div>
+  </article>`;
+}
+
+function renderPlayoffs() {
+  const po = buildPlayoffs();
+  const banner = document.getElementById('playoffs-banner');
+  const bracket = document.getElementById('playoffs-bracket');
+
+  if (!po.ready) {
+    banner.innerHTML = '';
+    bracket.innerHTML = '<div class="empty">Play-offs need at least five pairs in the table. Seeds come from the live league standings: 2nd v 5th and 3rd v 4th, then those winners meet in the final.</div>';
+    return;
+  }
+
+  const champPlayers = pairLabel(po.leagueChampion);
+  banner.innerHTML = `<div class="champion-banner">
+    <div>
+      <div class="kicker">League champions — 1st</div>
+      <div class="who">${esc(champPlayers)}</div>
+    </div>
+    <div class="meta">2nd–5th play off for the remaining title</div>
+  </div>`;
+
+  const seeds = po.seeds;
+  const sfHtml =
+    playoffCardHtml('Semi-final · 2nd v 5th', po.sf25, '', ['2nd place', '5th place'], seeds) +
+    playoffCardHtml('Semi-final · 3rd v 4th', po.sf34, '', ['3rd place', '4th place'], seeds);
+  const finalHtml = playoffCardHtml(
+    'Play-off final',
+    po.final,
+    'final-card',
+    ['Winner of 2nd v 5th', 'Winner of 3rd v 4th'],
+    seeds
+  );
+  const winnerHtml = po.champion
+    ? `<div class="po-winner-banner"><div class="kicker">Play-off champions</div><div class="who">${esc(pairLabel(po.champion))}</div></div>`
+    : '';
+
+  bracket.innerHTML = `<div class="bracket">
+    <div class="bracket-col">${sfHtml}</div>
+    <div class="bracket-join" aria-hidden="true"></div>
+    <div class="bracket-col">${finalHtml}${winnerHtml}</div>
+  </div>`;
+}
+
 /* NAV */
-const VALID_VIEWS = ['table', 'results', 'late-fixtures'];
+const VALID_VIEWS = ['table', 'results', 'playoffs', 'late-fixtures'];
 
 function switchToView(view, opts) {
   opts = opts || {};
@@ -988,14 +1268,21 @@ function paintLeague() {
   document.getElementById('scoring-note').textContent =
     'Matches are best of three, but all three sets are always played. ' +
     DATA.points.PER_SET + ' points for each set won, plus ' + DATA.points.MATCH_WIN +
-    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference.';
+    ' extra point for winning the match. A 3–0 win is 7–0 (the maximum); a 2–1 win is 5–2. Level on points: games won, then sets won, then games difference, then sets difference. ' +
+    '1st are league champions. 2nd play 5th and 3rd play 4th; those winners meet in the play-off final. Play-off matches do not count on the league table.';
 
   document.getElementById('late-note').textContent =
     'A fixture is late when the sheet has no result and the round was due before this week started. ' +
     'Each round gets its own week plus the following week to be played.';
 
+  document.getElementById('playoffs-note').textContent =
+    DATA.playoffsMissing
+      ? 'Seeds follow the live table. To record scores, add a Playoffs tab with columns Stage, Home, Away, Set 1, Set 2, Set 3. Use Stage values “2 v 5”, “3 v 4”, and “Final”. If the tab is missing, the bracket still shows who plays whom.'
+      : 'Seeds follow the live table until a result is entered on the Playoffs tab. Play-off matches are separate from league fixtures and do not change the table.';
+
   renderTable();
   renderResults();
+  renderPlayoffs();
   renderLateFixtures();
 }
 
@@ -1013,6 +1300,8 @@ async function boot() {
 
     const fixtures = resolveFixtures(loaded.fixtures);
     DATA.rounds = fixtures.rounds;
+    DATA.playoffRows = loaded.playoffRows;
+    DATA.playoffsMissing = loaded.playoffsMissing;
     paintLeague();
 
     if (!DATA.pairs.length) {
@@ -1031,6 +1320,8 @@ async function boot() {
   } catch (err) {
     DATA.pairs = [];
     DATA.rounds = [];
+    DATA.playoffRows = [];
+    DATA.playoffsMissing = true;
     teamIndex = new Map();
     paintLeague();
     setSheetStatus('Could not load the Google Sheet. Share it as Anyone with the link → Viewer. ' + err.message, 'error');
